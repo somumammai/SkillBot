@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>SkillBot | Interview Preparation</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#667085; --line:#e5e7eb; --accent:#4f46e5; --soft:#f5f7ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; background:#f3f5fb; color:var(--ink); }
+    .page { max-width:1000px; margin:0 auto; padding:28px 16px 48px; }
+    header { display:flex; align-items:center; gap:14px; margin-bottom:22px; }
+    .logo { display:grid; place-items:center; width:48px; height:48px; border-radius:15px; background:var(--accent); color:white; font-size:24px; }
+    h1 { font-size:clamp(24px,4vw,34px); margin:0; letter-spacing:-.04em; }
+    .subtitle { margin:5px 0 0; color:var(--muted); }
+    .layout { display:grid; grid-template-columns:280px minmax(0,1fr); gap:18px; align-items:start; }
+    .panel { background:white; border:1px solid var(--line); border-radius:18px; padding:18px; box-shadow:0 8px 28px #1820440a; }
+    h2 { font-size:16px; margin:0 0 12px; }
+    .suggestions { display:grid; gap:8px; }
+    .suggestion { width:100%; text-align:left; border:1px solid var(--line); background:white; border-radius:10px; padding:10px 12px; cursor:pointer; color:var(--ink); }
+    .suggestion:hover { border-color:var(--accent); background:var(--soft); }
+    .status { font-size:12px; color:var(--muted); margin-top:16px; }
+    .chat { min-height:540px; display:flex; flex-direction:column; }
+    .messages { flex:1; display:flex; flex-direction:column; gap:14px; }
+    .bubble { max-width:100%; border-radius:14px; padding:13px 15px; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.55; font-size:14px; }
+    .bot { background:#f7f8fc; border:1px solid #eceef5; }
+    .user { align-self:flex-end; background:var(--accent); color:white; max-width:85%; }
+    .results { display:grid; gap:10px; margin-top:10px; }
+    .result-card { border:1px solid var(--line); border-radius:12px; padding:12px; background:white; }
+    .result-card h3 { font-size:14px; margin:0 0 7px; }
+    .result-card p { white-space:pre-wrap; font-size:13px; line-height:1.5; margin:6px 0; color:#374151; }
+    .composer { display:flex; gap:9px; margin-top:18px; padding-top:16px; border-top:1px solid var(--line); }
+    input { flex:1; min-width:0; padding:13px 14px; border:1px solid #d1d5db; border-radius:12px; font:inherit; outline:none; }
+    input:focus { border-color:var(--accent); box-shadow:0 0 0 3px #4f46e51a; }
+    button.send { border:0; border-radius:12px; background:var(--accent); color:white; padding:0 18px; font:inherit; font-weight:650; cursor:pointer; }
+    button:disabled { opacity:.6; cursor:wait; }
+    .error { color:#b42318; }
+    @media (max-width:760px) { .layout { grid-template-columns:1fr; } .chat { min-height:440px; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div class="logo" aria-hidden="true">✦</div>
+      <div>
+        <h1>SkillBot</h1>
+        <p class="subtitle">Your interview and skills preparation assistant</p>
+      </div>
+    </header>
+    <div class="layout">
+      <aside class="panel">
+        <h2>Try asking</h2>
+        <div class="suggestions">
+          <button class="suggestion" data-query="Show aptitude questions">🧠 Aptitude practice</button>
+          <button class="suggestion" data-query="Tell me about teamwork">🤝 Teamwork questions</button>
+          <button class="suggestion" data-query="Communication skills tips">💬 Communication skills</button>
+          <button class="suggestion" data-query="Binary search time complexity">💻 Technical questions</button>
+          <button class="suggestion" data-query="TCS interview questions">🏢 TCS interview prep</button>
+          <button class="suggestion" data-query="help">❔ What can you do?</button>
+        </div>
+        <p class="status" id="apiStatus">Checking API status…</p>
+      </aside>
+      <section class="panel chat" aria-label="SkillBot chat">
+        <div class="messages" id="messages" aria-live="polite">
+          <div class="bubble bot">Hello! I'm SkillBot. Ask me about aptitude, communication, soft skills, technical interviews, or company-specific preparation.</div>
+        </div>
+        <form class="composer" id="chatForm">
+          <input id="messageInput" name="message" autocomplete="off" placeholder="Type your question…" maxlength="1000" required>
+          <button class="send" id="sendButton" type="submit">Send</button>
+        </form>
+      </section>
+    </div>
+  </main>
+  <script>
+    const messages = document.getElementById("messages");
+    const form = document.getElementById("chatForm");
+    const input = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+    const apiStatus = document.getElementById("apiStatus");
+
+    function addBubble(text, who = "bot", extraClass = "") {
+      const bubble = document.createElement("div");
+      bubble.className = `bubble ${who} ${extraClass}`.trim();
+      bubble.textContent = text;
+      messages.appendChild(bubble);
+      messages.scrollTop = messages.scrollHeight;
+      return bubble;
+    }
+
+    function addResults(items) {
+      if (!Array.isArray(items) || items.length === 0) return;
+      const wrap = document.createElement("div");
+      wrap.className = "results";
+      for (const item of items) {
+        const card = document.createElement("article");
+        card.className = "result-card";
+        const question = document.createElement("h3");
+        question.textContent = item.question || "Interview question";
+        card.appendChild(question);
+        if (item.answer) {
+          const answer = document.createElement("p");
+          answer.textContent = "Answer: " + item.answer;
+          card.appendChild(answer);
+        }
+        if (Array.isArray(item.companies) && item.companies.length) {
+          const companies = document.createElement("p");
+          companies.textContent = "Companies: " + item.companies.join(", ");
+          card.appendChild(companies);
+        }
+        if (item.tip) {
+          const tip = document.createElement("p");
+          tip.textContent = "Tip: " + item.tip;
+          card.appendChild(tip);
+        }
+        wrap.appendChild(card);
+      }
+      messages.appendChild(wrap);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    async function sendMessage(message) {
+      addBubble(message, "user");
+      input.value = "";
+      sendButton.disabled = true;
+      input.disabled = true;
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ message })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || `Request failed (${response.status})`);
+        }
+        if (!data.success || !data.response) {
+          throw new Error("The API response was not in the expected format.");
+        }
+        const result = data.response;
+        if (result.content) addBubble(result.content, "bot");
+        addResults(result.items);
+        if (Array.isArray(result.follow_up) && result.follow_up.length) {
+          addBubble("You can also ask: " + result.follow_up.join(" • "), "bot");
+        }
+      } catch (error) {
+        addBubble("Sorry, I couldn't reach the API. " + error.message, "bot", "error");
+      } finally {
+        sendButton.disabled = false;
+        input.disabled = false;
+        input.focus();
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const message = input.value.trim();
+      if (message) sendMessage(message);
+    });
+
+    document.querySelectorAll("[data-query]").forEach((button) => {
+      button.addEventListener("click", () => sendMessage(button.dataset.query));
+    });
+
+    fetch("/api/health")
+      .then((response) => {
+        if (!response.ok) throw new Error("API status " + response.status);
+        return response.json();
+      })
+      .then((data) => {
+        apiStatus.textContent = data.message || "API is online.";
+      })
+      .catch(() => {
+        apiStatus.textContent = "API is not responding. Check the Vercel deployment logs.";
+        apiStatus.classList.add("error");
+      });
+  </script>
+</body>
+</html>
